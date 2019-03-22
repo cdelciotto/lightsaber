@@ -9,13 +9,24 @@ import board
 import neopixel
 import adafruit_lis3dh
 import gc
+import random
  
 # CUSTOMIZE YOUR COLOR HERE:
-COLOR = (0, 100, 255) #cyan
+colorList  = [
+	(255,255,255), #White 
+	(255,0,0), #Red	
+	(0,255,0), #Green
+	(0,0,255), #Blue
+	(255,255,0), #Yellow 
+	(0,255,255), #Cyan 
+	(255,0,255), #Magenta 
+]
+
+COLOR = random.choice(colorList)
  
 # CUSTOMIZE SENSITIVITY HERE: smaller numbers = more sensitive to motion
-HIT_THRESHOLD = 350
-SWING_THRESHOLD = 125
+HIT_THRESHOLD = 500
+SWING_THRESHOLD = 150
  
 NUM_PIXELS = 85
 NEOPIXEL_PIN = board.D5
@@ -24,7 +35,7 @@ SWITCH_PIN = board.D9
  
 enable = DigitalInOut(POWER_PIN)  
 enable.direction = Direction.OUTPUT
-enable.value =False
+enable.value =True
  
 red_led = DigitalInOut(board.D11)
 red_led.direction = Direction.OUTPUT
@@ -52,131 +63,135 @@ accel = adafruit_lis3dh.LIS3DH_I2C(i2c)
 accel.range = adafruit_lis3dh.RANGE_4_G
  
 # "Idle" color is 1/4 brightness, "swinging" color is full brightness...
-COLOR_IDLE = (int(COLOR[0] / 3), int(COLOR[1] / 3), int(COLOR[2] / 3))
+COLOR_IDLE = (int(COLOR[0] * .8), int(COLOR[1] * .8), int(COLOR[2] *.8))
 COLOR_SWING = COLOR
 COLOR_HIT = (255, 255, 255)  # "hit" color is white
- 
+
+print("starting up")
+green_led.value = True
+
 def play_wav(name, loop=False):
-    """
-    Play a WAV file in the 'sounds' directory.
-    @param name: partial file name string, complete name will be built around
-                 this, e.g. passing 'foo' will play file 'sounds/foo.wav'.
-    @param loop: if True, sound will repeat indefinitely (until interrupted
-                 by another sound).
-    """
-    print("playing", name)
-    try:
-        wave_file = open('sounds/' + name + '.wav', 'rb')
-        wave = audioio.WaveFile(wave_file)
-        audio.play(wave, loop=loop)
-    except:
-        return
+	"""
+	Play a WAV file in the 'sounds' directory.
+	@param name: partial file name string, complete name will be built around
+				 this, e.g. passing 'foo' will play file 'sounds/foo.wav'.
+	@param loop: if True, sound will repeat indefinitely (until interrupted
+				 by another sound).
+	"""
+	print("playing", name)
+	try:
+		wave_file = open('sounds/' + name + '.wav', 'rb')
+		wave = audioio.WaveFile(wave_file)
+		audio.play(wave, loop=loop)
+	except:
+		return
  
 def power(sound, duration, reverse):
-    """
-    Animate NeoPixels with accompanying sound effect for power on / off.
-    @param sound:    sound name (similar format to play_wav() above)
-    @param duration: estimated duration of sound, in seconds (>0.0)
-    @param reverse:  if True, do power-off effect (reverses animation)
-    """
-    if reverse:
-        prev = NUM_PIXELS
-    else:
-        prev = 0
-    gc.collect()                   # Tidy up RAM now so animation's smoother
-    start_time = time.monotonic()  # Save audio start time
-    play_wav(sound)
-    while True:
-        elapsed = time.monotonic() - start_time  # Time spent playing sound
-        if elapsed > duration:                   # Past sound duration?
-            break                                # Stop animating
-        fraction = elapsed / duration            # Animation time, 0.0 to 1.0
-        if reverse:
-            fraction = 1.0 - fraction            # 1.0 to 0.0 if reverse
-        fraction = math.pow(fraction, 0.5)       # Apply nonlinear curve
-        threshold = int(NUM_PIXELS * fraction + 0.5)
-        num = threshold - prev # Number of pixels to light on this pass
-        if num != 0:
-            if reverse:
-                strip[threshold:prev] = [0] * -num
-            else:
-                strip[prev:threshold] = [COLOR_IDLE] * num
-            strip.show()
-            # NeoPixel writes throw off time.monotonic() ever so slightly
-            # because interrupts are disabled during the transfer.
-            # We can compensate somewhat by adjusting the start time
-            # back by 30 microseconds per pixel.
-            start_time -= NUM_PIXELS * 0.00003
-            prev = threshold
+	"""
+	Animate NeoPixels with accompanying sound effect for power on / off.
+	@param sound:    sound name (similar format to play_wav() above)
+	@param duration: estimated duration of sound, in seconds (>0.0)
+	@param reverse:  if True, do power-off effect (reverses animation)
+	"""
+	if reverse:
+		prev = NUM_PIXELS
+	else:
+		prev = 0
+	gc.collect()                   # Tidy up RAM now so animation's smoother
+	start_time = time.monotonic()  # Save audio start time
+	play_wav(sound)
+	while True:
+		elapsed = time.monotonic() - start_time  # Time spent playing sound
+		if elapsed > duration:                   # Past sound duration?
+			break                                # Stop animating
+		fraction = elapsed / duration            # Animation time, 0.0 to 1.0
+		if reverse:
+			fraction = 1.0 - fraction            # 1.0 to 0.0 if reverse
+		fraction = math.pow(fraction, 0.5)       # Apply nonlinear curve
+		threshold = int(NUM_PIXELS * fraction + 0.5)
+		num = threshold - prev # Number of pixels to light on this pass
+		if num != 0:
+			if reverse:
+				strip[threshold:prev] = [0] * -num
+			else:
+				strip[prev:threshold] = [COLOR_IDLE] * num
+			strip.show()
+			# NeoPixel writes throw off time.monotonic() ever so slightly
+			# because interrupts are disabled during the transfer.
+			# We can compensate somewhat by adjusting the start time
+			# back by 30 microseconds per pixel.
+			start_time -= NUM_PIXELS * 0.00003
+			prev = threshold
  
-    if reverse:
-        strip.fill(0)                            # At end, ensure strip is off
-    else:
-        strip.fill(COLOR_IDLE)                   # or all pixels set on
-    strip.show()
-    while audio.playing:                         # Wait until audio done
-        pass
+	if reverse:
+		strip.fill(0)                            # At end, ensure strip is off
+	else:
+		strip.fill(COLOR_IDLE)                   # or all pixels set on
+	strip.show()
+	while audio.playing:                         # Wait until audio done
+		pass
  
 def mix(color_1, color_2, weight_2):
-    """
-    Blend between two colors with a given ratio.
-    @param color_1:  first color, as an (r,g,b) tuple
-    @param color_2:  second color, as an (r,g,b) tuple
-    @param weight_2: Blend weight (ratio) of second color, 0.0 to 1.0
-    @return: (r,g,b) tuple, blended color
-    """
-    if weight_2 < 0.0:
-        weight_2 = 0.0
-    elif weight_2 > 1.0:
-        weight_2 = 1.0
-    weight_1 = 1.0 - weight_2
-    return (int(color_1[0] * weight_1 + color_2[0] * weight_2),
-            int(color_1[1] * weight_1 + color_2[1] * weight_2),
-            int(color_1[2] * weight_1 + color_2[2] * weight_2))
+	"""
+	Blend between two colors with a given ratio.
+	@param color_1:  first color, as an (r,g,b) tuple
+	@param color_2:  second color, as an (r,g,b) tuple
+	@param weight_2: Blend weight (ratio) of second color, 0.0 to 1.0
+	@return: (r,g,b) tuple, blended color
+	"""
+	if weight_2 < 0.0:
+		weight_2 = 0.0
+	elif weight_2 > 1.0:
+		weight_2 = 1.0
+	weight_1 = 1.0 - weight_2
+	return (int(color_1[0] * weight_1 + color_2[0] * weight_2),
+			int(color_1[1] * weight_1 + color_2[1] * weight_2),
+			int(color_1[2] * weight_1 + color_2[2] * weight_2))
  
 # Main program loop, repeats indefinitely
 while True:
+ 	if not switch.value:                    # button pressed?
+		if mode == 0:                       # If currently off...
+			enable.value = True
+			red_led.value = True
+			green_led.value = True
+			power('on', 1.7, False)         # Power up!
+			play_wav('idle', loop=True)     # Play background hum sound
+			mode = 1                        # ON (idle) mode now
+		else:                               # else is currently on...
+			power('off', 1.15, True)        # Power down
+			mode = 0                        # OFF mode now
+			#enable.value = False
+			green_led.value = True
+			red_led.value = False
+		while not switch.value:             # Wait for button release
+			time.sleep(0.2)                 # to avoid repeated triggering
  
-    red_led.value = True
- 
-    if not switch.value:                    # button pressed?
-        if mode == 0:                       # If currently off...
-            enable.value = True
-            power('on', 1.7, False)         # Power up!
-            play_wav('idle', loop=True)     # Play background hum sound
-            mode = 1                        # ON (idle) mode now
-        else:                               # else is currently on...
-            power('off', 1.15, True)        # Power down
-            mode = 0                        # OFF mode now
-            enable.value = False
-        while not switch.value:             # Wait for button release
-            time.sleep(0.2)                 # to avoid repeated triggering
- 
-    elif mode >= 1:                         # If not OFF mode...
-        x, y, z = accel.acceleration # Read accelerometer
-        accel_total = x * x + z * z
-        # (Y axis isn't needed for this, assuming Hallowing is mounted
-        # sideways to stick.  Also, square root isn't needed, since we're
-        # just comparing thresholds...use squared values instead, save math.)
-        if accel_total > HIT_THRESHOLD:   # Large acceleration = HIT
-            TRIGGER_TIME = time.monotonic() # Save initial time of hit
-            play_wav('hit')                 # Start playing 'hit' sound
-            COLOR_ACTIVE = COLOR_HIT        # Set color to fade from
-            mode = 3                        # HIT mode
-        elif mode is 1 and accel_total > SWING_THRESHOLD: # Mild = SWING
-            TRIGGER_TIME = time.monotonic() # Save initial time of swing
-            play_wav('swing')               # Start playing 'swing' sound
-            COLOR_ACTIVE = COLOR_SWING      # Set color to fade from
-            mode = 2                        # SWING mode
-        elif mode > 1:                      # If in SWING or HIT mode...
-            if audio.playing:               # And sound currently playing...
-                blend = time.monotonic() - TRIGGER_TIME # Time since triggered
-                if mode == 2:               # If SWING,
-                    blend = abs(0.5 - blend) * 2.0 # ramp up, down
-                strip.fill(mix(COLOR_ACTIVE, COLOR_IDLE, blend))
-                strip.show()
-            else:                           # No sound now, but still MODE > 1
-                play_wav('idle', loop=True) # Resume background hum
-                strip.fill(COLOR_IDLE)      # Set to idle color
-                strip.show()
-                mode = 1                    # IDLE mode now
+	elif mode >= 1:                         # If not OFF mode...
+		x, y, z = accel.acceleration # Read accelerometer
+		accel_total = x * x + z * z
+		# (Y axis isn't needed for this, assuming Hallowing is mounted
+		# sideways to stick.  Also, square root isn't needed, since we're
+		# just comparing thresholds...use squared values instead, save math.)
+		if accel_total > HIT_THRESHOLD:   # Large acceleration = HIT
+			TRIGGER_TIME = time.monotonic() # Save initial time of hit
+			play_wav('hit')                 # Start playing 'hit' sound
+			COLOR_ACTIVE = COLOR_HIT        # Set color to fade from
+			mode = 3                        # HIT mode
+		elif mode is 1 and accel_total > SWING_THRESHOLD: # Mild = SWING
+			TRIGGER_TIME = time.monotonic() # Save initial time of swing
+			play_wav('swing')               # Start playing 'swing' sound
+			COLOR_ACTIVE = COLOR_SWING      # Set color to fade from
+			mode = 2                        # SWING mode
+		elif mode > 1:                      # If in SWING or HIT mode...
+			if audio.playing:               # And sound currently playing...
+				blend = time.monotonic() - TRIGGER_TIME # Time since triggered
+				if mode == 2:               # If SWING,
+					blend = abs(0.5 - blend) * 2.0 # ramp up, down
+				strip.fill(mix(COLOR_ACTIVE, COLOR_IDLE, blend))
+				strip.show()
+			else:                           # No sound now, but still MODE > 1
+				play_wav('idle', loop=True) # Resume background hum
+				strip.fill(COLOR_IDLE)      # Set to idle color
+				strip.show()
+				mode = 1                    # IDLE mode now
